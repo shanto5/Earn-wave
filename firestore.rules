@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (matches Auth UID)
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string
+    //   - photoURL: string
+    //   - directLinks: list (max 20 strings)
+    //   - totalClicks: number
+    //   - linkClicks: number
+    //   - createdAt: timestamp
+    //
+    // Collection: tasks
+    // Document ID: {taskId}
+    // Fields:
+    //   - taskId: string
+    //   - title: string
+    //   - description: string
+    //   - likes: number
+    //   - publishedAt: timestamp
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid is string &&
+             data.email is string &&
+             (!('directLinks' in data) || (data.directLinks is list && data.directLinks.size() <= 20)) &&
+             (!('totalClicks' in data) || data.totalClicks is number) &&
+             (!('linkClicks' in data) || data.linkClicks is number) &&
+             (!('receivedLikes' in data) || data.receivedLikes is number) &&
+             (!('lastLikes' in data) || data.lastLikes is map) &&
+             (!('likedTaskIds' in data) || (data.likedTaskIds is list && data.likedTaskIds.size() <= 1000));
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+             (request.auth.token.email == "princeshanto520@gmail.com");
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated(); // Allow all users to read profiles for following/followers
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data)) ||
+                    (isAuthenticated() && 
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['receivedLikes', 'followerUids']) &&
+                     // Validate receivedLikes increment if present
+                     (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['receivedLikes']) || 
+                      request.resource.data.receivedLikes == resource.data.get('receivedLikes', 0) + 1) &&
+                     // Validate followerUids change if present (only adding/removing self)
+                     (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['followerUids']) ||
+                      (request.resource.data.followerUids.hasAll(resource.data.get('followerUids', [])) && 
+                       request.resource.data.followerUids.size() == resource.data.get('followerUids', []).size() + 1 &&
+                       request.resource.data.followerUids.hasAny([request.auth.uid])) ||
+                      (resource.data.get('followerUids', []).hasAll(request.resource.data.followerUids) &&
+                       resource.data.get('followerUids', []).size() == request.resource.data.followerUids.size() + 1 &&
+                       resource.data.get('followerUids', []).hasAny([request.auth.uid])))
+                    );
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+      allow update: if isAuthenticated() && 
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']);
+    }
+
+    match /config/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}

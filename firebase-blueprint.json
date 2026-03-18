@@ -1,0 +1,53 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user information and their Adsterra direct links.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "User email" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "photoURL": { "type": "string", "description": "User profile photo URL" },
+        "directLinks": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of up to 20 Adsterra direct links"
+        },
+        "totalClicks": { "type": "integer", "description": "Total tasks liked" },
+        "linkClicks": { "type": "integer", "description": "Total ad link clicks generated" },
+        "likedTaskIds": { "type": "array", "items": { "type": "string" }, "description": "IDs of tasks liked by user" },
+        "lastLikes": { "type": "object", "description": "Map of taskId to last liked timestamp" },
+        "receivedLikes": { "type": "integer", "description": "Total likes received from others" },
+        "followingUids": { "type": "array", "items": { "type": "string" }, "description": "List of UIDs the user is following" },
+        "followerUids": { "type": "array", "items": { "type": "string" }, "description": "List of UIDs following the user" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Represents a task in the feed.",
+      "type": "object",
+      "properties": {
+        "taskId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "likes": { "type": "integer" },
+        "url": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "publishedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Feed tasks"
+    }
+  }
+}
